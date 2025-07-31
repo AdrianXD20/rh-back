@@ -8,13 +8,18 @@ const fs = require('fs');
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
-// Configurar CORS para permitir solicitudes desde el frontend en Vercel
+// Configurar CORS explícitamente
 app.use(cors({
-    origin: ['https://rhproject.vercel.app/', 'http://localhost:3000'], // Reemplaza con la URL de tu frontend en Vercel
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type'],
-    credentials: true
+    origin: ['https://rhproject.vercel.app', 'http://localhost:3000'], // Permitir frontend de Vercel y localhost para pruebas
+    methods: ['GET', 'POST', 'OPTIONS'], // Incluir OPTIONS para preflight
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    optionsSuccessStatus: 204 // Respuesta para solicitudes OPTIONS
 }));
+
+// Manejar solicitudes OPTIONS explícitamente
+app.options('/send-email', cors());
+
 app.use(express.json());
 
 // Configurar transporte de Nodemailer
@@ -31,7 +36,7 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Verificar conexión SMTP al iniciar el servidor
+// Verificar conexión SMTP al iniciar
 transporter.verify((error, success) => {
     if (error) {
         console.error('Error al verificar la conexión SMTP:', {
@@ -46,7 +51,11 @@ transporter.verify((error, success) => {
 
 // Ruta de prueba para verificar el estado del servidor
 app.get('/health', (req, res) => {
-    console.log('Solicitud recibida en /health desde:', req.headers['user-agent'], req.ip);
+    console.log('Solicitud recibida en /health desde:', {
+        userAgent: req.headers['user-agent'],
+        ip: req.ip,
+        origin: req.headers.origin
+    });
     res.json({ status: 'Backend is running', timestamp: new Date().toISOString() });
 });
 
@@ -56,6 +65,7 @@ app.post('/send-email', upload.single('pdf'), async (req, res) => {
         headers: req.headers,
         ip: req.ip,
         userAgent: req.headers['user-agent'],
+        origin: req.headers.origin,
         body: req.body,
         file: req.file ? {
             originalname: req.file.originalname,
